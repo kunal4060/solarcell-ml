@@ -150,7 +150,7 @@ def parity_plot(y_true, y_pred, model_name):
         r2 = r2_score(yt, yp)
         rmse = float(np.sqrt(mean_squared_error(yt, yp)))
         mae = mean_absolute_error(yt, yp)
-        ax.scatter(yt, yp, s=18, alpha=0.55, color="#1f77b4", edgecolors="none")
+        ax.scatter(yt, yp, s=40, alpha=0.65, color="#1f77b4", edgecolors="none")
         lo = min(yt.min(), yp.min())
         hi = max(yt.max(), yp.max())
         pad = (hi - lo) * 0.03
