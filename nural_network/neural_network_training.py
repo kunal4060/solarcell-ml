@@ -154,7 +154,7 @@ def plot_history(history):
 
 
 def parity_plot(y_true, y_pred):
-    """2x2 parity plot, Aman style (R2/RMSE/MAE titles, no Accuracy)."""
+    """2x2 parity plot, Aman's exact style (R2/RMSE/MAE titles, no Accuracy)."""
     from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
     plot_order = [
@@ -163,36 +163,34 @@ def parity_plot(y_true, y_pred):
         (2, "FF"),
         (3, "Efficiency"),
     ]
-    fig, axes = plt.subplots(2, 2, figsize=(14, 11))
-    for ax, (i, tname) in zip(axes.ravel(), plot_order):
-        yt, yp = y_true[:, i], y_pred[:, i]
-        r2 = r2_score(yt, yp)
-        rmse = float(np.sqrt(mean_squared_error(yt, yp)))
-        mae = mean_absolute_error(yt, yp)
-        ax.scatter(yt, yp, s=40, alpha=0.7, color="#4682B4", edgecolors="#1a1a2e", linewidths=0.5)
-        lo, hi = min(yt.min(), yp.min()), max(yt.max(), yp.max())
-        pad = (hi - lo) * 0.03
-        ax.plot(
-            [lo - pad, hi + pad],
-            [lo - pad, hi + pad],
-            color="red",
-            linestyle="--",
-            linewidth=1.6,
-            label="Perfect Prediction",
-        )
-        ax.set_xlabel(f"Actual {tname}", fontsize=16)
-        ax.set_ylabel(f"Predicted {tname}", fontsize=16)
-        ax.set_title(
-            f"MLP - {tname} Actual Vs Predicted\n"
-            f"R² = {r2:.4f} | RMSE = {rmse:.4f} | MAE = {mae:.4f}",
-            fontsize=14,
-        )
-        ax.legend(fontsize=11, loc="upper left")
-        ax.grid(True, alpha=0.4)
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    axes = axes.flatten()
+    for ax_i, (i, target_label) in enumerate(plot_order):
+        ax = axes[ax_i]
+        actual = y_true[:, i]
+        predicted = y_pred[:, i]
+        # dots FIRST: default blue, default size
+        ax.scatter(actual, predicted, alpha=0.6, edgecolors='k', linewidth=0.5)
+
+        min_val = min(actual.min(), predicted.min())
+        max_val = max(actual.max(), predicted.max())
+        # red dashed line SECOND (drawn on top of dots)
+        ax.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2, label='Perfect Prediction')
+
+        r2 = r2_score(actual, predicted)
+        rmse = np.sqrt(mean_squared_error(actual, predicted))
+        mae = mean_absolute_error(actual, predicted)
+        # NOTE: no Accuracy in title
+        ax.set_xlabel(f"Actual {target_label}", fontsize=16)
+        ax.set_ylabel(f"Predicted {target_label}", fontsize=16)
+        ax.set_title(f"MLP - {target_label} Actual Vs Predicted\nR² = {r2:.4f} | RMSE = {rmse:.4f} | MAE = {mae:.4f}", fontsize=12)
+        ax.legend(fontsize=11)
         ax.tick_params(labelsize=11)
-    fig.tight_layout()
-    fig.savefig(os.path.join(RESULTS_DIR, "actual_vs_predicted.png"), dpi=110)
-    plt.close(fig)
+        ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, "actual_vs_predicted.png"), dpi=200)
+    plt.close()
 
 
 def metrics_bars(metrics_df):
