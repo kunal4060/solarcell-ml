@@ -9,7 +9,16 @@ fill factor (**FF**) and power-conversion efficiency (**eta**).
 
 ## Dataset
 
-`ml_training/dataset.csv` — 2,944 SCAPS simulation samples (Tim's own simulation data).
+`ml_training/dataset.csv` — 2,944 raw SCAPS simulation samples (Tim's own simulation data).
+`ml_training/dataset_dedup.csv` — **1,328 unique design points** actually used for training.
+
+> **Deduplication:** the raw data contained 1,616 near-duplicate rows — design points
+> differing only in the 5th–6th decimal place of the features (physically meaningless
+> for µm-scale thickness values). A random train/test split placed near-twins of the
+> same point on both sides, letting models memorize instead of learn (data leakage,
+> R² ≈ 1.0000). Deduplication (rounding the 5 features to 4 decimals and dropping
+> duplicates) fixes this: the test set now contains genuinely unseen design points,
+> so the reported scores are honest generalization performance.
 
 | | |
 |---|---|
@@ -19,7 +28,7 @@ fill factor (**FF**) and power-conversion efficiency (**eta**).
 
 ## Classical ML pipeline (`ml_training/training.py`)
 
-1. Load `dataset.csv`, drop rows with missing values.
+1. Load `dataset_dedup.csv`, drop rows with missing values.
 2. 80/20 train/test split.
 3. Train six regressors (tree ensembles on raw features; linear/distance models behind a `StandardScaler` pipeline):
    - XGBoost (`MultiOutputRegressor` wrapper)
@@ -33,7 +42,7 @@ fill factor (**FF**) and power-conversion efficiency (**eta**).
 
 ## Neural network pipeline (`nural_network/neural_network_training.py`)
 
-1. Same `dataset.csv`, same 80/20 split.
+1. Same `dataset_dedup.csv`, same 80/20 split.
 2. Standardize X and y (scalers fitted on the training fold).
 3. Train a dense PyTorch MLP `5 → 128 → 64 → 32 → 4` with BatchNorm, Dropout(0.2),
    ReLU, Adam (lr=1e-3), MSE loss and early stopping (patience 30, max 500 epochs)
@@ -41,21 +50,21 @@ fill factor (**FF**) and power-conversion efficiency (**eta**).
 4. Evaluate in original units: R², RMSE, MAE per target + overall.
 5. Save metrics, predictions, weights, scalers and plots to `neural_network_results/`.
 
-## Results (test set, 589 samples)
+## Results (test set, 266 samples — honest, leakage-free)
 
 Overall scores (mean R² across the four targets):
 
 | Model | R² (overall) | RMSE (overall) | MAE (overall) |
 |---|---|---|---|
-| RandomForest | **0.999988** | 0.000134 | 0.000081 |
-| GradientBoosting | 0.999965 | 0.000286 | 0.000198 |
-| KNeighbors | 0.999958 | 0.000543 | 0.000325 |
-| XGBoost | 0.999851 | 0.000248 | 0.000178 |
-| MLP (PyTorch) | 0.998624 | 0.003398 | 0.002685 |
-| LinearRegression | 0.992356 | 0.009192 | 0.007826 |
-| Ridge | 0.992333 | 0.009197 | 0.007834 |
+| RandomForest | **0.999917** | 0.000702 | 0.000250 |
+| GradientBoosting | 0.999904 | 0.000731 | 0.000318 |
+| XGBoost | 0.999247 | 0.000982 | 0.000354 |
+| MLP (PyTorch) | 0.997673 | 0.004036 | 0.002890 |
+| KNeighbors | 0.996508 | 0.005277 | 0.001242 |
+| Ridge | 0.990983 | 0.009664 | 0.007719 |
+| LinearRegression | 0.990814 | 0.009758 | 0.007735 |
 
-**Best model: RandomForest (overall R² = 0.999988).** Tree-based ensembles clearly
+**Best model: RandomForest (overall R² = 0.999917).** Tree-based ensembles clearly
 outperform linear models on this data; the neural network lands between the
 ensembles and the linear baselines.
 
@@ -63,10 +72,10 @@ Per-target R² of the best model (RandomForest):
 
 | Target | R² | RMSE | MAE |
 |---|---|---|---|
-| eta (%) | 0.999998 | 0.000199 | 0.000118 |
-| Voc (V) | 0.999961 | 0.000010 | 0.000006 |
-| Jsc (mA/cm²) | 1.000000 | 0.000069 | 0.000019 |
-| FF (%) | 0.999992 | 0.000259 | 0.000180 |
+| eta (%) | 0.999944 | 0.001028 | 0.000356 |
+| Voc (V) | 0.999847 | 0.000018 | 0.000011 |
+| Jsc (mA/cm²) | 0.999930 | 0.001120 | 0.000270 |
+| FF (%) | 0.999949 | 0.000642 | 0.000363 |
 
 ## Metrics
 
@@ -83,7 +92,8 @@ For true values y, predictions ŷ and n samples:
 ├── combined_model_performance.csv   # all 7 models × (4 targets + overall)
 ├── combined_model_outputs.csv       # test-set actuals + every model's predictions
 ├── ml_training/
-│   ├── dataset.csv                  # 2,944 samples, 5 features + 4 targets
+│   ├── dataset.csv                  # 2,944 raw samples (kept for reference)
+│   ├── dataset_dedup.csv            # 1,328 unique design points (used for training)
 │   ├── training.py                  # six-regressor benchmark
 │   └── results/
 │       ├── model_metrics.csv
@@ -115,5 +125,8 @@ python nural_network/neural_network_training.py
 - All code in this repo is written from scratch for this project; the training
   methodology (80/20 split, six classical regressors + MLP, R²/RMSE/MAE reporting)
   follows the standard solar-cell ML benchmarking setup.
-- The dataset is Tim's own SCAPS simulation data and is committed here as
-  `ml_training/dataset.csv` for reproducibility.
+- The dataset is Tim's own SCAPS simulation data. The raw file
+  (`ml_training/dataset.csv`, 2,944 rows) is committed for reference; training
+  uses the deduplicated file (`ml_training/dataset_dedup.csv`, 1,328 unique
+  design points) so that test scores measure real generalization, not
+  memorization of near-duplicate rows.

@@ -11,7 +11,10 @@ five SCAPS simulation inputs:
 
 Methodology
 -----------
-1. Load dataset.csv, drop rows with missing values.
+1. Load dataset_dedup.csv (2944 raw samples deduplicated to 1328 unique
+   design points — near-duplicate rows differing only in the 5th-6th decimal
+   place were removed to prevent train/test data leakage), drop rows with
+   missing values.
 2. 80/20 train/test split (random_state=42).
 3. Train six regressors. Tree ensembles learn the raw features directly;
    linear / distance-based models get a StandardScaler via a Pipeline:
@@ -59,7 +62,7 @@ from xgboost import XGBRegressor
 warnings.filterwarnings("ignore")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(HERE, "dataset.csv")
+DATA_PATH = os.path.join(HERE, "dataset_dedup.csv")
 RESULTS_DIR = os.path.join(HERE, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -130,50 +133,60 @@ def evaluate(y_true, y_pred):
     return out
 
 
+def display_target_name(name):
+    """Human-friendly label for plots."""
+    return {
+        "eta_pct": "Efficiency",
+        "voc_V": "Voc",
+        "jsc_mAcm2": "Jsc",
+        "ff_pct": "FF",
+    }.get(name, name)
+
+
 def parity_plot(y_true, y_pred, model_name):
-    """2x2 predicted-vs-actual panels, Aman's exact style.
-
-    Titles show R2/RMSE/MAE only (no Accuracy).
-    Layout: Voc, Jsc (top row), FF, Efficiency (bottom row).
-    """
-    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-
-    plot_order = [
-        ("voc_V", "Voc"),
-        ("jsc_mAcm2", "Jsc"),
-        ("ff_pct", "FF"),
-        ("eta_pct", "Efficiency"),
-    ]
+    """2x2 predicted-vs-actual panels, one per target (Aman-style)."""
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     axes = axes.flatten()
-    for i, (tkey, target_label) in enumerate(plot_order):
+    for i, target in enumerate(TARGET_COLUMNS):
         ax = axes[i]
-        ti = TARGET_COLUMNS.index(tkey)
-        actual = y_true[:, ti]
-        predicted = y_pred[:, ti]
-        # dots FIRST: default blue, default size
-        ax.scatter(actual, predicted, alpha=0.6, edgecolors='k', linewidth=0.5)
+        actual = y_true[:, i]
+        predicted = y_pred[:, i]
+        ax.scatter(actual, predicted, alpha=0.6, edgecolors="k", linewidth=0.5)
 
+        # Perfect prediction line
         min_val = min(actual.min(), predicted.min())
         max_val = max(actual.max(), predicted.max())
-        # red dashed line SECOND (drawn on top of dots)
-        ax.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2, label='Perfect Prediction')
+        ax.plot(
+            [min_val, max_val],
+            [min_val, max_val],
+            "r--",
+            lw=2,
+            label="Perfect Prediction",
+        )
 
+        # Metrics for title
         r2 = r2_score(actual, predicted)
         rmse = np.sqrt(mean_squared_error(actual, predicted))
         mae = mean_absolute_error(actual, predicted)
-        # NOTE: no Accuracy in title
+        target_label = display_target_name(target)
+
         ax.set_xlabel(f"Actual {target_label}", fontsize=16)
         ax.set_ylabel(f"Predicted {target_label}", fontsize=16)
-        ax.set_title(f"{model_name} - {target_label} Actual Vs Predicted\nR² = {r2:.4f} | RMSE = {rmse:.4f} | MAE = {mae:.4f}", fontsize=12)
+        ax.set_title(
+            (
+                f"{model_name} - {target_label} Actual Vs Predicted\n"
+                f"R² = {r2:.4f} | RMSE = {rmse:.4f} | MAE = {mae:.4f}"
+            ),
+            fontsize=12,
+        )
         ax.legend(fontsize=11)
         ax.tick_params(labelsize=11)
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
     path = os.path.join(RESULTS_DIR, f"actual_vs_predicted_{model_name}.png")
-    plt.savefig(path, dpi=200)
-    plt.close()
+    fig.savefig(path, dpi=200)
+    plt.close(fig)
     return path
 
 

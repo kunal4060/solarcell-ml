@@ -2,11 +2,12 @@
 PyTorch MLP for solar-cell multi-output regression.
 
 Predicts Voc, Jsc, FF and efficiency (eta) from the five SCAPS simulation
-inputs (same dataset.csv as the classical ML pipeline).
+inputs (same deduplicated dataset as the classical ML pipeline).
 
 Methodology
 -----------
-1. Load dataset.csv, drop rows with missing values.
+1. Load dataset_dedup.csv (deduplicated to 1328 unique design points),
+   drop rows with missing values.
 2. 80/20 train/test split (random_state=42 — same split as ml_training so
    the classical models and the network are compared on identical data).
 3. Standardize X and y with StandardScaler (fitted on the training fold).
@@ -48,7 +49,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(HERE, "..", "ml_training", "dataset.csv")
+DATA_PATH = os.path.join(HERE, "..", "ml_training", "dataset_dedup.csv")
 RESULTS_DIR = os.path.join(HERE, "..", "neural_network_results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -153,44 +154,59 @@ def plot_history(history):
     plt.close(fig)
 
 
-def parity_plot(y_true, y_pred):
-    """2x2 parity plot, Aman's exact style (R2/RMSE/MAE titles, no Accuracy)."""
-    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+def display_target_name(name):
+    """Human-friendly label for plots."""
+    return {
+        "eta_pct": "Efficiency",
+        "voc_V": "Voc",
+        "jsc_mAcm2": "Jsc",
+        "ff_pct": "FF",
+    }.get(name, name)
 
-    plot_order = [
-        (0, "Voc"),
-        (1, "Jsc"),
-        (2, "FF"),
-        (3, "Efficiency"),
-    ]
+
+def parity_plot(y_true, y_pred):
+    """2x2 predicted-vs-actual panels, one per target (Aman-style)."""
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     axes = axes.flatten()
-    for ax_i, (i, target_label) in enumerate(plot_order):
-        ax = axes[ax_i]
+    for i, target in enumerate(TARGET_COLUMNS):
+        ax = axes[i]
         actual = y_true[:, i]
         predicted = y_pred[:, i]
-        # dots FIRST: default blue, default size
-        ax.scatter(actual, predicted, alpha=0.6, edgecolors='k', linewidth=0.5)
+        ax.scatter(actual, predicted, alpha=0.6, edgecolors="k", linewidth=0.5)
 
+        # Perfect prediction line
         min_val = min(actual.min(), predicted.min())
         max_val = max(actual.max(), predicted.max())
-        # red dashed line SECOND (drawn on top of dots)
-        ax.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2, label='Perfect Prediction')
+        ax.plot(
+            [min_val, max_val],
+            [min_val, max_val],
+            "r--",
+            lw=2,
+            label="Perfect Prediction",
+        )
 
+        # Metrics for title
         r2 = r2_score(actual, predicted)
         rmse = np.sqrt(mean_squared_error(actual, predicted))
         mae = mean_absolute_error(actual, predicted)
-        # NOTE: no Accuracy in title
+        target_label = display_target_name(target)
+
         ax.set_xlabel(f"Actual {target_label}", fontsize=16)
         ax.set_ylabel(f"Predicted {target_label}", fontsize=16)
-        ax.set_title(f"MLP - {target_label} Actual Vs Predicted\nR² = {r2:.4f} | RMSE = {rmse:.4f} | MAE = {mae:.4f}", fontsize=12)
+        ax.set_title(
+            (
+                f"MLP - {target_label} Actual Vs Predicted\n"
+                f"R² = {r2:.4f} | RMSE = {rmse:.4f} | MAE = {mae:.4f}"
+            ),
+            fontsize=12,
+        )
         ax.legend(fontsize=11)
         ax.tick_params(labelsize=11)
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(RESULTS_DIR, "actual_vs_predicted.png"), dpi=200)
-    plt.close()
+    fig.savefig(os.path.join(RESULTS_DIR, "actual_vs_predicted.png"), dpi=200)
+    plt.close(fig)
 
 
 def metrics_bars(metrics_df):
