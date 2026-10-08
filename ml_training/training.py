@@ -131,8 +131,9 @@ def evaluate(y_true, y_pred):
 
 
 def parity_plot(y_true, y_pred, model_name):
-    """2x2 predicted-vs-actual panels, Aman style (R2/RMSE/MAE titles, no Accuracy).
+    """2x2 predicted-vs-actual panels, Aman's exact style.
 
+    Titles show R2/RMSE/MAE only (no Accuracy).
     Layout: Voc, Jsc (top row), FF, Efficiency (bottom row).
     """
     from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -143,39 +144,36 @@ def parity_plot(y_true, y_pred, model_name):
         ("ff_pct", "FF"),
         ("eta_pct", "Efficiency"),
     ]
-    fig, axes = plt.subplots(2, 2, figsize=(14, 11))
-    for ax, (tkey, tname) in zip(axes.ravel(), plot_order):
-        i = TARGET_COLUMNS.index(tkey)
-        yt, yp = y_true[:, i], y_pred[:, i]
-        r2 = r2_score(yt, yp)
-        rmse = float(np.sqrt(mean_squared_error(yt, yp)))
-        mae = mean_absolute_error(yt, yp)
-        ax.scatter(yt, yp, s=40, alpha=0.7, color="#4682B4", edgecolors="#1a1a2e", linewidths=0.5)
-        lo = min(yt.min(), yp.min())
-        hi = max(yt.max(), yp.max())
-        pad = (hi - lo) * 0.03
-        ax.plot(
-            [lo - pad, hi + pad],
-            [lo - pad, hi + pad],
-            color="red",
-            linestyle="--",
-            linewidth=1.6,
-            label="Perfect Prediction",
-        )
-        ax.set_xlabel(f"Actual {tname}", fontsize=16)
-        ax.set_ylabel(f"Predicted {tname}", fontsize=16)
-        ax.set_title(
-            f"{model_name} - {tname} Actual Vs Predicted\n"
-            f"R² = {r2:.4f} | RMSE = {rmse:.4f} | MAE = {mae:.4f}",
-            fontsize=14,
-        )
-        ax.legend(fontsize=11, loc="upper left")
-        ax.grid(True, alpha=0.4)
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    axes = axes.flatten()
+    for i, (tkey, target_label) in enumerate(plot_order):
+        ax = axes[i]
+        ti = TARGET_COLUMNS.index(tkey)
+        actual = y_true[:, ti]
+        predicted = y_pred[:, ti]
+        # dots FIRST: default blue, default size
+        ax.scatter(actual, predicted, alpha=0.6, edgecolors='k', linewidth=0.5)
+
+        min_val = min(actual.min(), predicted.min())
+        max_val = max(actual.max(), predicted.max())
+        # red dashed line SECOND (drawn on top of dots)
+        ax.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2, label='Perfect Prediction')
+
+        r2 = r2_score(actual, predicted)
+        rmse = np.sqrt(mean_squared_error(actual, predicted))
+        mae = mean_absolute_error(actual, predicted)
+        # NOTE: no Accuracy in title
+        ax.set_xlabel(f"Actual {target_label}", fontsize=16)
+        ax.set_ylabel(f"Predicted {target_label}", fontsize=16)
+        ax.set_title(f"{model_name} - {target_label} Actual Vs Predicted\nR² = {r2:.4f} | RMSE = {rmse:.4f} | MAE = {mae:.4f}", fontsize=12)
+        ax.legend(fontsize=11)
         ax.tick_params(labelsize=11)
-    fig.tight_layout()
+        ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
     path = os.path.join(RESULTS_DIR, f"actual_vs_predicted_{model_name}.png")
-    fig.savefig(path, dpi=110)
-    plt.close(fig)
+    plt.savefig(path, dpi=200)
+    plt.close()
     return path
 
 
