@@ -154,18 +154,42 @@ def plot_history(history):
 
 
 def parity_plot(y_true, y_pred):
-    fig, axes = plt.subplots(2, 2, figsize=(11, 10))
-    for ax, i, target in zip(axes.ravel(), range(4), TARGET_COLUMNS):
+    """2x2 parity plot, Aman style (R2/RMSE/MAE titles, no Accuracy)."""
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+    plot_order = [
+        (0, "Voc"),
+        (1, "Jsc"),
+        (2, "FF"),
+        (3, "Efficiency"),
+    ]
+    fig, axes = plt.subplots(2, 2, figsize=(14, 11))
+    for ax, (i, tname) in zip(axes.ravel(), plot_order):
         yt, yp = y_true[:, i], y_pred[:, i]
-        ax.scatter(yt, yp, s=8, alpha=0.35, color="#2ca02c")
+        r2 = r2_score(yt, yp)
+        rmse = float(np.sqrt(mean_squared_error(yt, yp)))
+        mae = mean_absolute_error(yt, yp)
+        ax.scatter(yt, yp, s=18, alpha=0.55, color="#1f77b4", edgecolors="none")
         lo, hi = min(yt.min(), yp.min()), max(yt.max(), yp.max())
-        ax.plot([lo, hi], [lo, hi], "r--", lw=1.2, label="ideal")
-        ax.set_xlabel(f"Actual {target}")
-        ax.set_ylabel(f"Predicted {target}")
-        ax.set_title(f"MLP — {target}")
-        ax.legend()
-        ax.grid(alpha=0.25)
-    fig.suptitle("Actual vs Predicted — MLP", fontsize=14)
+        pad = (hi - lo) * 0.03
+        ax.plot(
+            [lo - pad, hi + pad],
+            [lo - pad, hi + pad],
+            color="red",
+            linestyle="--",
+            linewidth=1.6,
+            label="Perfect Prediction",
+        )
+        ax.set_xlabel(f"Actual {tname}", fontsize=16)
+        ax.set_ylabel(f"Predicted {tname}", fontsize=16)
+        ax.set_title(
+            f"MLP - {tname} Actual Vs Predicted\n"
+            f"R² = {r2:.4f} | RMSE = {rmse:.4f} | MAE = {mae:.4f}",
+            fontsize=14,
+        )
+        ax.legend(fontsize=11, loc="upper left")
+        ax.grid(True, alpha=0.4)
+        ax.tick_params(labelsize=11)
     fig.tight_layout()
     fig.savefig(os.path.join(RESULTS_DIR, "actual_vs_predicted.png"), dpi=110)
     plt.close(fig)
